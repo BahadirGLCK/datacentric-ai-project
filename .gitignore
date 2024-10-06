@@ -33,3 +33,6 @@ __pycache__/
 # Reduntants
 .DS_Store
 **/.DS_Store
+
+# MinIO
+**/.minio.sys
