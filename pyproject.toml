@@ -28,6 +28,7 @@ boto3 = "^1.35.29"
 python-dotenv = "^1.0.1"
 psycopg2 = "^2.9.9"
 pandas = "^2.2.3"
+torch = "^2.5.0"
 
 [tool.poetry.group.checks.dependencies]
 bandit = "^1.7.9"
