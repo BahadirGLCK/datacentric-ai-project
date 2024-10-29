@@ -36,3 +36,4 @@ __pycache__/
 
 # MinIO
 **/.minio.sys
+data/

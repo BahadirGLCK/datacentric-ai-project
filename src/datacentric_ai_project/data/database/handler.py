@@ -45,7 +45,7 @@ class DatabaseManager:
                 INSERT INTO companies (company_id, company_name, contact_person, contact_email)
                 VALUES (%s, %s, %s, %s) RETURNING company_id;
                 """
-                company_id = uuid.uuid4()
+                company_id = str(uuid.uuid4())
 
                 cursor.execute(insert_query, (
                     company_id,
@@ -75,7 +75,7 @@ class DatabaseManager:
                 INSERT INTO factories (factory_id, company_id, factory_name, factory_country, factory_city)
                 VALUES (%s, %s, %s, %s, %s) RETURNING factory_id;
                 """
-                factory_id = uuid.uuid4()
+                factory_id = str(uuid.uuid4())
 
                 cursor.execute(insert_query, (
                     factory_id,
@@ -106,7 +106,7 @@ class DatabaseManager:
                 INSERT INTO device_types (device_type_id, device_type)
                 VALUES (%s, %s) RETURNING device_type_id;
                 """
-                device_type_id = uuid.uuid4()
+                device_type_id = str(uuid.uuid4())
 
                 cursor.execute(insert_query, (
                     device_type_id,
@@ -123,7 +123,7 @@ class DatabaseManager:
             connection.close()
 
     ### Insert into Devices
-    def insert_device(self, device_type_id, factory_id, is_test_device, is_installed, is_data_collector, installation_date):
+    def insert_installation(self, device_type_id, factory_id, is_test_device, is_installed, is_data_collector, installation_date, device_id):
         connection = self.connect()
         if connection is None:
             return
@@ -131,23 +131,25 @@ class DatabaseManager:
         try:
             with connection.cursor() as cursor:
                 insert_query = """
-                INSERT INTO devices (device_id, device_type_id, factory_id, is_test_device, is_installed, is_data_collector, installation_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING device_id;
+                INSERT INTO installation (installation_id, device_type_id, factory_id, is_test_device, is_installed, is_data_collector, installation_date, device_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING installation_id;
                 """
-                device_id = uuid.uuid4()
+
+                installation_id = str(uuid.uuid4())
 
                 cursor.execute(insert_query, (
-                    device_id,
+                    installation_id,
                     device_type_id,
                     factory_id,
                     is_test_device,
                     is_installed,
                     is_data_collector,
-                    installation_date
+                    installation_date,
+                    device_id
                 ))
                 connection.commit()
-                print(f"Device {device_id} inserted successfully.")
-                return device_id  # Returning the device_id for further relationships
+                print(f"Device {installation_id} inserted successfully.")
+                return installation_id  # Returning the device_id for further relationships
         
         except Exception as e:
             print(f"Failed to insert device: {e}")
@@ -167,7 +169,7 @@ class DatabaseManager:
                 INSERT INTO images (image_id, device_id, image_url, capture_timestamp, is_trainable, image_resolution, augmentation)
                 VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING image_id;
                 """
-                image_id = uuid.uuid4()
+                image_id = str(uuid.uuid4())
                 capture_timestamp = datetime.now() if not timestamp else timestamp
 
                 cursor.execute(insert_query, (
@@ -201,7 +203,7 @@ class DatabaseManager:
                 INSERT INTO detections (detection_id, image_id, label_id, confidence_score, bbox_file_url, detection_timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s) RETURNING detection_id;
                 """
-                detection_id = uuid.uuid4()
+                detection_id = str(uuid.uuid4())
                 detection_timestamp = datetime.now() if not timestamp else timestamp
 
                 cursor.execute(insert_query, (
@@ -235,7 +237,7 @@ class DatabaseManager:
                 VALUES (%s, %s) RETURNING label_id;
                 """
 
-                label_id = uuid.uuid4()
+                label_id = str(uuid.uuid4())
                 cursor.execute(insert_query, (
                     label_id,
                     label_name
@@ -281,4 +283,41 @@ class DatabaseManager:
             print(f"Failed to fetch detection summary: {e}")
         
         finally:
+            connection.close()
+    
+    def get_factory_info(self, factory_name):
+        """
+        Get factory info's
+        """
+        connection = self.connect()
+        if connection is None:
+            return
+        
+        try:
+            with connection.cursor() as cursor:
+                # SQL query to retrieve factory_id and company_id for a specific factory_name
+                query = """
+                SELECT factory_id, company_id 
+                FROM factories
+                WHERE factory_name = %s;
+                """
+                
+                # Execute the query with the specific factory_name
+                cursor.execute(query, (factory_name,))
+                
+                # Fetch the result
+                result = cursor.fetchone()
+                if result:
+                    factory_id, company_id = result
+                    print(f"Factory ID: {factory_id}, Company ID: {company_id}")
+                    return factory_id, company_id
+                else:
+                    print("No matching factory found.")
+                    return None
+            
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            
+        finally:
+            # Close the connection
             connection.close()
