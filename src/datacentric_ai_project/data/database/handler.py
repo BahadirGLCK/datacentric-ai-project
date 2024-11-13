@@ -368,20 +368,27 @@ class DatabaseManager:
             connection.close()
 
         return installation_id
-
-def get_table_as_dataframe(table_name):
-    # Database connection parameters
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST"),
-        database=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        port=os.getenv("DB_PORT"),
-    )
-    # Query the table
-    query = f"SELECT * FROM {table_name};"
-    # Load data into a DataFrame
-    df = pd.read_sql(query, conn)
-    # Close the connection
-    conn.close()
-    return df
+    
+    def get_table_as_dataframe(self, table_name):
+        # Database connection parameters
+        conn = self.connect()
+        # Query the table
+        query = f"SELECT * FROM {table_name};"
+        # Load data into a DataFrame
+        df = pd.read_sql(query, conn)
+        # Close the connection
+        conn.close()
+        return df
+    
+    def get_images_and_annotations(self):
+        query = """
+                SELECT image_url, ann_file_url
+                FROM images
+                WHERE is_trainable = TRUE;
+                """
+        conn = self.connect()
+        try:
+            df = pd.read_sql(query, conn)
+        finally:
+            conn.close()
+        return df
