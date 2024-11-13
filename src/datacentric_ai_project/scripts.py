@@ -6,12 +6,41 @@ import sys
 import os
 from data.database import handler
 from data import utils
+import psycopg2
+import pandas as pd
 
 # %%
 dataset_path = '/Users/bahadirgolcuk/bahadir/project/datacentric-ai-dataset/dock_dataset'
 foctory_files_dict = utils.collect_desired_files_and_factory_names_from_dataset_folder(dataset_path, 'annotation')
 # %%
 foctory_files_dict.keys()
+
+# %%
+db_manager = handler.DatabaseManager()
+connection = db_manager.connect()
+query = """
+        SELECT * 
+        FROM companies;
+        """
+row_list = []
+with connection.cursor() as cursor:
+    cursor.execute(query)
+    result = cursor.fetchall()
+    row_list.extend(result)
+# %%
+row_list
+# %%
+for r in row_list:
+    company_name = r[1]
+    company_id = r[0]
+    for f_name in foctory_files_dict.keys():
+        f_name = f_name.lower()
+        if company_name in f_name or company_name == f_name:
+            if '-' in f_name and not (f_name == 'egger-dekor' or f_name == 'teknik-aluminyum' or f_name == 'norm-civata'):
+                c_name = f_name.split('-')[0]
+                f_name_splitted = f_name.split('-')[1]
+
+
 
 # %%
 foctory_device_dict = {}
@@ -137,3 +166,108 @@ for img_path in all_img_files:
     minio_client.upload_file(img_path, dest_path)
 # %%
 minio_client.count_files()
+
+# %%
+# {device_type}_{factory_name} -> device_id-@0@datetime(W)_
+dataset_path = '/Users/bahadirgolcuk/bahadir/project/datacentric-ai-dataset/dock_dataset'
+factory_ann_dict = utils.collect_desired_files_and_factory_names_from_dataset_folder(dataset_path, 'annotation')
+
+# %%
+factory_ann_dict.keys()
+# %%
+factory_ann_dict['']
+# %%
+dataset_path = '/Users/bahadirgolcuk/bahadir/project/datacentric-ai-dataset/dock_dataset'
+image_dict = utils.get_information_of_images(dataset_path, 'image')
+# %%
+list(image_dict.keys())
+# %%
+image_dict['aka300']
+
+# %%
+db_manager = handler.DatabaseManager()
+# %%
+for key, values in image_dict.items():
+    for v in values:
+        db_manager.insert_image(v['installation_id'], 
+                            v['image_url'],
+                            v['is_trainable'], 
+                            v['image_resolution'], 
+                            v['augmentation'], 
+                            v['capture_timestamp'])
+# %%
+label_list = ['pedestrian_side', 'pedestrian_top', 'truck_back']
+for label in label_list:
+    db_manager.insert_labels(label)
+# %%
+import os
+bucket_path = '/Users/bahadirgolcuk/bahadir/project/datacentric-ai-project/data/dock'
+
+image_folder = 'image'
+annotation_folder = 'annotations'
+
+print(len(os.listdir(os.path.join(bucket_path, image_folder))))
+print(len(os.listdir(os.path.join(bucket_path, annotation_folder))))
+
+# %%
+# %%
+def get_table_as_dataframe(table_name):
+    # Database connection parameters
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        port=os.getenv('DB_PORT')
+    )
+    
+    # Query the table
+    query = f"SELECT * FROM {table_name};"
+    
+    # Load data into a DataFrame
+    df = pd.read_sql(query, conn)
+    
+    # Close the connection
+    conn.close()
+    
+    return df
+# %%
+df_images = get_table_as_dataframe('images')
+# %%
+len(df_images)
+# %%
+df_images.columns
+# %%
+ann_file_url_list = []
+for img_url in list(df_images['image_url']):
+    filename = img_url.split('/')[-1]
+    ann_file_url = 'annotations/' + filename.split('.')[0] + '.xml' 
+    ann_file_url_list.append(ann_file_url)
+df_images['ann_file_ur'] = ann_file_url_list
+
+# %%
+df_images.head()
+# %%
+list(df_images['image_url'])
+# %%
+# Database connection parameters
+conn = psycopg2.connect(
+    host=os.getenv("DB_HOST"),
+    database=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    port=os.getenv("DB_PORT"),
+)
+
+# Update each row in the database
+cursor = conn.cursor()
+for _, row in df_images.iterrows():
+    cursor.execute(
+        "UPDATE images SET ann_file_url = %s WHERE image_id = %s",
+        (row['ann_file_ur'], row['image_id'])
+    )
+
+conn.commit()  # Commit the transaction
+cursor.close()
+conn.close()
+# %%

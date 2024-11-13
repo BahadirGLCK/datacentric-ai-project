@@ -1,5 +1,7 @@
 import os
 import zipfile
+from datetime import datetime
+from datacentric_ai_project.data.database.handler import DatabaseManager
 
 def extract_all_zip_files(zip_folder_path, extract_to, prefix='dock'):
     """
@@ -110,3 +112,81 @@ def collect_desired_files_and_factory_names_from_dataset_folder(dataset_path, fi
                     processed_files.add(file_name)
 
     return factory_files_dict
+
+
+def get_information_of_images(dataset_path, file_type):
+    db_manager = DatabaseManager()
+
+    connection = db_manager.connect()
+    query = """
+            SELECT * 
+            FROM factories;
+            """
+    factories_row_list = []
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        result = cursor.fetchall()
+        factories_row_list.extend(result)
+
+    image_info_dict = {}
+    factory_dict = collect_desired_files_and_factory_names_from_dataset_folder(dataset_path, file_type)
+
+    for key, f_paths in factory_dict.items():
+        key = key.lower()
+        if not key in list(image_info_dict.keys()):
+            image_info_dict[key] = []
+        
+        for file_path in f_paths:
+            image_name = os.path.basename(file_path)
+            device_id = image_name[:8]
+
+            if '@' in image_name:
+                date_time = image_name.split('@')[2][:12]
+                capture_timestamp = datetime.strptime(date_time, "%y%m%d%H%M%S")
+            elif 'DHL1' in image_name:
+                date_time = image_name.split('_')[2][:14]
+                capture_timestamp = datetime.strptime(date_time, "%Y%m%d%H%M%S")
+            elif 'DHL2' in image_name:
+                splitted_image_name = image_name.split('_')
+                if splitted_image_name[1][0] != '2':
+                    date_time = image_name.split('_')[2][:14]
+                else:
+                    date_time = image_name.split('_')[1][:14]
+                capture_timestamp = datetime.strptime(date_time, "%Y%m%d%H%M%S")
+            else:
+                date_time = image_name[8:20]
+                capture_timestamp = datetime.strptime(date_time, "%y%m%d%H%M%S")
+        
+            image_url = 'image/' + image_name
+            is_trainable=True
+            if '300' in key:
+                image_resolution = 300
+            else:
+                image_resolution = 480
+            
+            augmentation = False
+
+            #define factory_name
+            factory_name = ''
+            for row in factories_row_list:
+                factory_name_str = row[2]
+
+                if factory_name_str == key or factory_name_str in key:
+                    factory_name = factory_name_str
+
+            if factory_name:
+                installation_id = db_manager.get_installation_id(factory_name, device_id)
+
+                image_info_dict[key].append({'installation_id': installation_id, 'image_url': image_url, 'capture_timestamp': capture_timestamp, 
+                                            'is_trainable': is_trainable, 'image_resolution': image_resolution,
+                                            'augmentation': augmentation})
+            else:
+                print(f'There is no installation id - {key}, {device_id}')
+    return image_info_dict
+
+if __name__ == '__main__':
+    dataset_path = '/Users/bahadirgolcuk/bahadir/project/datacentric-ai-dataset/dock_dataset'
+    image_dict = get_information_of_images(dataset_path, 'image')
+
+            
+
