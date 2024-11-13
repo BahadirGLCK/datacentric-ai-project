@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 
 class MinIOClient:
-    def __init__(self):
+    def __init__(self, bucket_name):
         # Load environment variables
         load_dotenv()
 
@@ -12,7 +12,7 @@ class MinIOClient:
         self.endpoint = os.getenv('MINIO_ENDPOINT')
         self.access_key = os.getenv('MINIO_ACCESS_KEY')
         self.secret_key = os.getenv('MINIO_SECRET_KEY')
-        self.bucket_name = os.getenv('MINIO_IMAGE_BUCKET')
+        self.bucket_name = bucket_name
 
         # Initialize the MinIO client
         self.minio_client = boto3.client(
@@ -23,11 +23,11 @@ class MinIOClient:
             config=Config(signature_version='s3v4')
         )
 
-    def upload_image(self, file_path: str, object_name: str):
+    def upload_file(self, file_path: str, object_name: str):
         """
-        Upload an image to MinIO.
+        Upload an file to MinIO.
 
-        :param file_path: Local path of the image to upload.
+        :param file_path: Local path of the file to upload.
         :param object_name: Name of the object in the MinIO bucket.
         :raises: Exception if upload fails.
         """
@@ -38,9 +38,9 @@ class MinIOClient:
         except Exception as e:
             raise Exception(f"Failed to upload {object_name}: {str(e)}")
 
-    def download_image(self, object_name: str, download_path: str):
+    def download_file(self, object_name: str, download_path: str):
         """
-        Download an image from MinIO.
+        Download an file from MinIO.
 
         :param object_name: Name of the object in the MinIO bucket.
         :param download_path: Local path where the downloaded image will be saved.
@@ -51,3 +51,13 @@ class MinIOClient:
             print(f"Successfully downloaded {object_name} to {download_path}")
         except Exception as e:
             raise Exception(f"Failed to download {object_name}: {str(e)}")
+    
+    def count_files(self) -> int:
+        """Count the number of files in the specified bucket."""
+        try:
+            response = self.minio_client.list_objects_v2(Bucket=self.bucket_name)
+            count = sum(1 for _ in response.get('Contents', []))
+            print(f"Number of files in bucket '{self.bucket_name}': {count}")
+            return count
+        except Exception as e:
+            raise Exception(f"Failed to count files in bucket {self.bucket_name}: {str(e)}")
