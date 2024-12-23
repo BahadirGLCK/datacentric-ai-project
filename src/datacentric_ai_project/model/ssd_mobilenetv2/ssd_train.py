@@ -3,14 +3,14 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from datacentric_ai_project.model.ssd_mobilenetv2.ssd_model import SSDModelWithAnchorsAndNMS
-from datacentric_ai_project.mlflow_utils.mlflow_helper import MLflowHelper  # Assuming MLflow logging is implemented
+from datacentric_ai_project.mlflow_utils import MLflowHelper  # Assuming MLflow logging is implemented
 from datacentric_ai_project.data.bucket.handler import MinIOClient  # Import your MinIO client implementation
 from datacentric_ai_project.data.database.handler import DatabaseManager  # Import your database connector
 from datacentric_ai_project.data.dataset import AnnotationParser  # Import the annotation parser
 from datacentric_ai_project.data.dataset import SSDSimpleDataset  # Import the updated dataset class
 
 class SSDTrainer:
-    def __init__(self, model, train_loader,val_loader criterion, optimizer, device="cuda"):
+    def __init__(self, model, train_loader,val_loader, criterion, optimizer, device="cuda"):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -22,7 +22,8 @@ class SSDTrainer:
         self.model.train()
         running_loss = 0.0
         for i, (images, targets) in enumerate(self.train_loader):
-            images, targets = images.to(self.device), [{k: v.to(self.device) for k, v in t.items()} for t in targets]
+            images = torch.stack(images).to(self.device)  # Convert list of tensors to a single tensor
+            targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
 
             self.optimizer.zero_grad()
             loc_preds, cls_preds = self.model(images)
@@ -85,6 +86,10 @@ def initialize_training(num_classes, learning_rate):
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.0005)
     return model, criterion, optimizer
 
+def collate_fn(batch):
+    images, targets = zip(*batch)
+    return list(images), list(targets)
+
 # Main entry point
 def main():
     # Training configurations
@@ -98,15 +103,15 @@ def main():
     mlflow_helper.start_run(params={"learning_rate": learning_rate, "epochs": num_epochs, "batch_size": batch_size})
 
     # Initialize Datasets and DataLoaders
-    train_dataset = SSDSimpleDataset(data_main_folder='datacentric-ai-project/data/dock', transform=None)
+    train_dataset = SSDSimpleDataset(transform=None)
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     # Initialize model, criterion, and optimizer
     model, criterion, optimizer = initialize_training(num_classes, learning_rate)
-
+    val_loader = None
     # Initialize trainer and train the model
-    trainer = SSDTrainer(model, train_loader, val_loader, criterion, optimizer, device="cuda")
+    trainer = SSDTrainer(model, train_loader, val_loader, criterion, optimizer, device="mps")
     trainer.train(num_epochs, mlflow_helper)
 
     mlflow_helper.end_run()
